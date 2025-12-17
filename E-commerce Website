@@ -1,0 +1,134 @@
+import streamlit as st
+from PIL import Image
+import mysql.connector
+
+users = {"admin": "admin123", "user1": "user123", "jai": "kumar"}
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "username" not in st.session_state:
+    st.session_state.username = ""
+if "cart" not in st.session_state:
+    st.session_state.cart = []
+
+def get_connection():
+    return mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="",
+        database="ecommerce"
+    )
+
+def add_to_cart(item, price):
+    st.session_state.cart.append({"item": item, "price": price})
+    st.success(f"{item} added to cart!")
+
+def clothing_page():
+    st.header("🛍 Clothing Shop")
+    category = st.sidebar.radio("Choose Category", ["Kids", "Men's", "Women's"])
+
+    if category == "Kids":
+        st.info("kid's")
+        imag1 = Image.open("jai.jpg")
+        st.image(imag1, width=500)
+
+        if st.button("Add Kids T-Shirt - ₹299"):
+            add_to_cart("Kids T-Shirt", 299)
+        if st.button("Add Kids Shorts - ₹199"):
+            add_to_cart("Kids Shorts", 199)
+
+    elif category == "Men's":
+        st.info("Men's")
+        imag1 = Image.open("jai.jpg")
+        st.image(imag1, width=500)
+
+        if st.button("Add Men's Shirt - ₹799"):
+            add_to_cart("Men's Shirt", 799)
+        if st.button("Add Men's Jeans - ₹1299"):
+            add_to_cart("Men's Jeans", 1299)
+
+    elif category == "Women's":
+        st.info("women's")
+        imag1 = Image.open("jai.jpg")
+        st.image(imag1, width=500)
+
+        if st.button("Add Women's Dress - ₹999"):
+            add_to_cart("Women's Dress", 999)
+        if st.button("Add Women's Saree - ₹1499"):
+            add_to_cart("Women's Saree", 1499)
+
+def cart_page():
+    st.header("🛒 Your Cart")
+
+    if not st.session_state.cart:
+        st.warning("Cart is empty!")
+        return
+
+    total = sum(item["price"] for item in st.session_state.cart)
+    st.table(st.session_state.cart)
+    st.write(f"*Total: ₹{total}*")
+
+    if st.button("Place Order"):
+        try:
+            conn = get_connection()
+            cur = conn.cursor()
+            for item in st.session_state.cart:
+                cur.execute(
+                    "INSERT INTO order (username, item, price,orderdate) VALUES (%s, %s, %s,%s)",
+                    (st.session_state.username, item["item"], item["price"]),
+                )
+            conn.commit()
+            conn.close()
+            st.success("Order placed successfully!")
+            st.session_state.cart.clear()
+        except Exception as e:
+            st.error(f"Error placing order: {e}")
+
+def order_history():
+    st.header("📜 Your Order History")
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT item, price, orderdate from order WHERE username='jai'",
+                    (st.session_state.username,))
+        orders = cur.fetchall()
+        conn.close()
+        if orders:
+            st.table(orders)
+        else:
+            st.info("No past orders found.")
+    except Exception as e:
+        st.error(f"Error fetching history: {e}")
+
+
+def home_page():
+    st.title(f"👋 Welcome, {st.session_state.username}!")
+
+    menu = st.sidebar.selectbox("Menu", ["Shop", "Cart", "Order History"])
+    if menu == "Shop":
+        clothing_page()
+    elif menu == "Cart":
+        cart_page()
+    elif menu == "Order History":
+        order_history()
+
+    if st.button("Logout"):
+        st.session_state.logged_in = False
+        st.session_state.username = ""
+        st.session_state.cart.clear()
+
+def login_page():
+    st.title("🔒 Login")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    if st.button("Login"):
+        if username in users and users[username] == password:
+            st.session_state.logged_in = True
+            st.session_state.username = username
+        else:
+            st.error("Invalid credentials")
+
+if st.session_state.logged_in:
+    home_page()
+else:
+    login_page()
